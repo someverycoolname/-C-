@@ -1,0 +1,150 @@
+\section{Класс \mintinline{csharp}{WebRequest} и его производные. Работа с Web API} 
+\subsection{Использование производных класса WebRequest}
+Класс \mintinline{csharp}{WebRequest} позволяет делать запоросы на веб-сервер. Этот класс является абстрактным и от него наследуются различные классы, которые отличаются друг от друга протоколом. В частности это: 
+
+\begin{description}[style=nextline]
+\item [\mintinline{csharp}{System.Net.HttpWebRequest}] использует протокол HTTP (HyperText Transfer Protocol, Протокол Передачи Гипертекста)
+\item [\mintinline{csharp}{System.Net.FtpWebRequest}]
+ипользует протокол FTP (File Transfer Protocol, Протокол Передачи Данных)
+\item [\mintinline{csharp}{System.Net.FileWebRequest}]
+ипользует протокол \path{file}
+\item [\mintinline{csharp}{System.IO.Packaging.PackWebRequest}] в отличие от предыдущих базируется на идее отправки запросов находящихся в пакетах. В частности в ZIP.
+\end{description}
+
+\subsection{Пример} \label{webrequest} 
+
+В \ref{jsonxmlserialization} было рассказано про JSON сериализацию. Давайте применим эти навыки в более приближенном к реальности примере. На просторах сети Интернет можно найти множество ресурсов с тестовыми JSON документами. Воспользуемся одним из них
+
+\url{https://jsonplaceholder.typicode.com/users}
+
+Здесь содержится какая база данных выдуманных пользователей. Наша задача получить её и десериализировать. На выходе у нас получится \mintinline{csharp}{List<>} с пользователями.
+
+\textit{Многие места в примерах кода были сокращены, поскольку занимают слишком много места в тексте.}
+
+Для начала мы должны рассмотреть запрашиваемый документ и подстроить под него архитектуру наших будующих классов. 
+
+\begin{minted}{json}
+{
+    "id": 1,
+    "name": "Leanne Graham",
+    "username": "Bret",
+    "email": "Sincere@april.biz",
+    "address": { ... },
+    "phone": "1-770-736-8031 x56442",
+    "website": "hildegard.org",
+    "company": { ... }
+}
+\end{minted}
+
+\newpage
+
+Наша задача описать классы для каждой структуры: \mintinline{json}{"address"}, \mintinline{json}{"company"} и для структуры, которая содержит все эти поля, назовем её  \mintinline{json}{"user"}. Для этого можно воспользоваться ресурсом, который автоматически создаст архитектуру классов под нужный нам JSON
+
+\url{http://json2csharp.com/}
+
+Единственное что нам останется сделать, это описать каждый класс и каждое поле как сериализируемые. Как напоминание, это делается с помощью атрибутов \mintinline{csharp}{[DataContract]} и \mintinline{csharp}{[DataMember]}. Как итог у нас должно получиться что-то подобное:
+
+\begin{minted}{csharp}
+[DataContract]
+public class Geo { ... }
+
+[DataContract]
+public class Address { ... }
+
+[DataContract]
+public class Company { ... }
+
+[DataContract]
+public class User
+}
+    [DataMember]
+    public int id { get; set; }
+
+    [DataMember]
+    public string name { get; set; }
+
+    [DataMember]
+    public string username { get; set; }
+
+    [DataMember]
+    public string email { get; set; }
+
+    [DataMember]
+    public Address address { get; set; }
+
+    [DataMember]
+    public string phone { get; set; }
+
+    [DataMember]
+    public string website { get; set; }
+
+    [DataMember]
+    public Company company { get; set; }
+
+    public override string ToString()
+    {
+        return id + " " + name + " " + username + " " + phone;
+    }
+}
+\end{minted}
+
+Далее, мы должны сформировать запрос. Для этого давайте воспользуемся статическим методом \mintinline{csharp}{WebRequest.Create(String)}
+
+\begin{minted}{csharp}
+WebRequest request = WebRequest.Create("https://jsonplaceholder.typicode.com/users");
+\end{minted}
+
+Теперь мы хотим отправить наш запрос серверу и получить на него ответ
+
+\begin{minted}{csharp}
+HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+\end{minted}
+
+Класс \mintinline{csharp}{HttpWebResponse} является простой оберткой вокруг ответа HTTP сервера. Нас от него интересует в данный момент всего две вещи: 
+
+\begin{enumerate}
+    \item Удостовериться, что запрос был принят и мы получили ответ от сервера
+    \item Получить ответ
+\end{enumerate}
+
+Выведем статус. Далее воспользуемся потоками для чтения из ответа
+
+\begin{minted}{csharp}
+Console.WriteLine(response.StatusDescription);
+
+Stream dataStream = response.GetResponseStream();
+StreamReader reader = new StreamReader(dataStream);
+\end{minted}
+
+Далее уже все очень просто и знакомо
+
+\begin{minted}{csharp}
+var jsonSerializer = new DataContractJsonSerializer(typeof(List<User>));
+var users = (List<User>)jsonSerializer.ReadObject(dataStream);
+\end{minted}
+
+Выведем на экран
+
+\begin{minted}{csharp}
+foreach (var it in users) {
+    Console.WriteLine(it);
+}
+\end{minted}
+
+Как итог, мы должны получить что-то такое
+
+\begin{minted}{csharp}
+OK
+1 Leanne Graham Bret 1-770-736-8031 x56442
+2 Ervin Howell Antonette 010-692-6593 x09125
+3 Clementine Bauch Samantha 1-463-123-4447
+4 Patricia Lebsack Karianne 493-170-9623 x156
+5 Chelsey Dietrich Kamren (254)954-1289
+6 Mrs. Dennis Schulist Leopoldo_Corkery 1-477-935-8478 x6430
+7 Kurtis Weissnat Elwyn.Skiles 210.067.6132
+8 Nicholas Runolfsdottir V Maxime_Nienow 586.493.6943 x140
+9 Glenna Reichert Delphine (775)976-6794 x41206
+10 Clementina DuBuque Moriah.Stanton 024-648-3804
+\end{minted}
+
+\textit{Не забывайте закрывать все открытые потоки, либо используйте \mintinline{csharp}{using}}

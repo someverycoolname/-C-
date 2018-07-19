@@ -1,0 +1,162 @@
+\section{Сериализация и десериализация, работа с форматом JSON/XML}
+
+Сериализация — процесс преобразования состояния объекта из обычного его представления, в вид пригодный для его перемещения и хранения между вызовами программы.
+
+\subsection{JSON сериализация} \label{jsonxmlserialization}
+
+JSON (JavaScript Object Notation) — формат распространения информации, пользующийся структурой "ключ-значение". Пример JSON объекта можно найти здесь:
+
+\url{http://date.jsontest.com}
+
+Данный сайт на запрос возвращает JSON, в котором хранится текущее время. Как пример такого ответа:
+
+\begin{minted}{json}
+{
+   "time": "11:39:00 PM",
+   "milliseconds_since_epoch": 1531352340670,
+   "date": "07-11-2018"
+}
+\end{minted}
+
+где \mintinline{json}{"time"} и \mintinline{json}{"date"} записаны время и дата соответственно в более знакомом для людей формате \mintinline{csharp}{hh:mm:ss PM/AM mm-dd-yyyy}, а \mintinline{json}{"milliseconds_since_epoch"} — UNIX timestamp, количество миллисекунд с начала эпохи, то есть с 00:00:00 UTC 1 января 1970 года.  
+
+Создадим класс, в котором будут хранится данные о результатах игрока. Нам важно знать его имя, количество им полученных очков и сколько времени он провел в игре. Для того чтобы иметь возможность сериализовать объект мы должны пометить, что этот объект сериализируемый. В частности, мы хотим объявить о том, что объект класса возможно сериализовать с помощью \mintinline{csharp}{DataContractSerializer}. 
+
+Для этого нам потребуется подключить пространство имен
+
+\begin{minted}{csharp}
+using System.Runtime.Serialization;
+\end{minted}
+
+и реализовать класс \mintinline{csharp}{PlayerResult}
+
+\begin{minted}{csharp}
+[DataContract]
+class PlayerResult 
+{
+    [DataMember] 
+    public string PlayerName { get; set; }
+
+    [DataMember] 
+    public int Score { get; set; }
+
+    [DataMember] 
+    public TimeSpan TimeDuration { get; set; }
+
+    public override string ToString()
+    {
+        return PlayerName + " " + Score + " " + TimeDuration;
+    }
+}
+\end{minted}
+
+Осталось только сериализовать и десериализовать объект. Для удобства, в данном примере мы будем использовать \mintinline{csharp}{MemoryStream}. Для сериализации объекта будет использован класс \mintinline{csharp}{DataContractJsonSerializer}, который содержится в пространстве имен
+
+\begin{minted}{csharp}
+using System.Runtime.Serialization.Json
+\end{minted}
+
+Теперь напишем это в коде нашей программы
+
+\begin{minted}{csharp}
+var memoryStream = new MemoryStream();
+var jsonSerializer = new DataContractJsonSerializer(typeof(PlayerResult));
+\end{minted}
+
+Сериализация объекта происходит с помощью метода \mintinline{csharp}{WriteObject(Stream, Object)}. Для начала объявим объект (называться он будет \mintinline{csharp}{pr}), а после сериализируем его
+
+\begin{minted}{csharp}
+var pr = new PlayerResult();
+pr.PlayerName = "Alice";
+pr.Score = 42;
+pr.TimeDuration = new TimeSpan(0, 12, 32);
+
+jsonSerializer.WriteObject(memoryStream, pr);
+\end{minted}
+
+Чтобы посмотреть что получилось, давайте воспользуемся объектом \mintinline{csharp}{StreamReader(Stream)}
+
+\begin{minted}{csharp}
+var streamReader = new StreamReader(memoryStream);
+memoryStream.Position = 0;
+Console.WriteLine(streamReader.ReadToEnd());
+\end{minted}
+
+Как результат исполнения вы можете получить вот такой вывод
+
+\begin{minted}{json}
+{"PlayerName":"Alice","Score":12,"TimeDuration":"PT12M32S"}
+\end{minted}
+
+
+Не забудьте освободить ресурсы, выделенные для MemoryStream.
+\begin{minted}{csharp}
+memoryStream.Dispose();
+\end{minted}
+
+Теперь десериализуем этот объект. Для этого воспользуемся методом \mintinline{csharp}{ReadObject(Stream)}
+
+\begin{minted}{csharp}
+memoryStream.Position = 0;
+var pr_copy = (PlayerResult)jsonSerializer.ReadObject(memoryStream);
+Console.WriteLine(pr_copy);
+\end{minted}
+
+В результате исполнения этого участка кода мы получим
+
+\begin{minted}{csharp}
+Alice 12 00:12:32
+\end{minted}
+
+Более сложный пример с использованием сериализации был рассмотрен в \ref{webrequest}. В нем используется контейнер \mintinline{csharp}{List<>} и если есть вопросы относительно этого, загляните туда.
+
+\subsection{XML сериализация}
+
+Примером типичного XML файла может полужить любой \path{*.xaml} файл, с которым вы скорее всего работали ранее по ходу этих методических материалов. Также примером может послужить ответ сервера PLOS (Public Library of Science, Открытая научная библиотека) на запрос
+
+\url{http://api.plos.org/search?q=title:"Graph"}
+
+который запрашивает информацию о всех статьях со словом Graph (граф) в названии.  
+
+Для того чтобы сериализовать и десериализовать объект в XML разметке нужно использовать класс \mintinline{csharp}{DataContractSerializer}, который находится  в пространстве имен
+
+\begin{minted}{csharp}
+using System.Runtime.Serialization
+\end{minted}
+
+Он работает индентично уже рассмотренному \mintinline{csharp}{DataContractJsonSerializer}. Более того, оба класса являются наследниками класса \mintinline{csharp}{XmlObjectSerializer}. Чтобы увидеть как это работает, достаточно заменить
+
+\begin{minted}{csharp}
+var jsonSerializer = new DataContractJsonSerializer(typeof(PlayerResults));
+\end{minted}
+
+на 
+
+\begin{minted}{csharp}
+var jsonSerializer = new DataContractSerializer(typeof(PlayerResults));
+\end{minted}
+
+Оставим название класса, для уменьшения количества правок в коде, но не забывайте о функции рефакторинга в вашей IDE. 
+
+Как результат наших манипуляций, наш объект \mintinline{csharp}{pr} после сериализации выглядит так
+
+\begin{minted}{csharp}
+<PlayerResults 
+	xmlns="http://schemas.datacontract.org/2004/07/serialization_test"
+	xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+
+		<PlayerName>Alice</PlayerName>
+		<Score>12</Score>
+		<TimeDuration>PT12M32S</TimeDuration>
+		
+</PlayerResults>
+\end{minted}
+
+Освободим ресурсы, выделенные для MemoryStream.
+\begin{minted}{csharp}
+memoryStream.Dispose();
+\end{minted}
+
+% \subsection{Использование атрибута \mintinline{csharp}{Serializable}}
+
+% \subsection{Использование атрибута \mintinline{csharp}{DataContract}}

@@ -1,0 +1,10 @@
+\usepackage{minted}
+\usepackage{caption}
+
+\newenvironment{code}{\captionsetup{type=listing}}{}
+\DeclareCaptionFont{white}{\color{white}}
+\DeclareCaptionFormat{listing}{\colorbox{gray}{\parbox{\textwidth}{#1#2#3}}}
+\captionsetup[listing]{format=listing,labelfont=white,textfont=white}
+
+\renewcommand{\theFancyVerbLine}{\sffamily \textcolor[rgb]{1.0,1.0,1.0}{\small \oldstylenums{\arabic{FancyVerbLine}}}}
+\setminted[csharp]{linenos=true, baselinestretch=0.8}
